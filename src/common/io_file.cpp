@@ -8,8 +8,6 @@
 #include "common/io_file.h"
 
 #ifdef _WIN32
-#include "common/ntapi.h"
-
 #include <io.h>
 #include <share.h>
 #include <windows.h>
