@@ -87,6 +87,16 @@ private:
     QPropertyAnimation *m_animation;
 };
 
+// Converts a QString to a filesystem path without going through the local 8-bit
+// code page (which would break non-ASCII file names on Windows).
+static std::filesystem::path ToPath(const QString &s) {
+#ifdef _WIN32
+    return std::filesystem::path(s.toStdWString());
+#else
+    return std::filesystem::path(s.toStdString());
+#endif
+}
+
 // Worker class for extraction
 class ExtractWorker : public QObject {
     Q_OBJECT
@@ -102,8 +112,8 @@ signals:
 public slots:
     void run() {
         auto result = ExtractPkg(
-            pkgPath.toStdString(), 
-            outputPath.toStdString(),
+            ToPath(pkgPath),
+            ToPath(outputPath),
             {}, // Extract all files
             [this](uint32_t e, uint32_t t) { emit progress(e, t); }
         );

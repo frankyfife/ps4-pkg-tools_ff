@@ -50,9 +50,61 @@ jobs:
           name: ps4-pkg-tools-${{ runner.os }}
           path: ps4-pkg-tools-${{ runner.os }}.tar.gz
 
+  build-windows:
+    name: Build on windows-latest
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: msys2 {0}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install dependencies (MSYS2 UCRT64)
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: UCRT64
+          update: true
+          install: >-
+            zip
+          pacboy: >-
+            toolchain:p cmake:p ninja:p qt6-base:p qt6-tools:p
+
+      - name: Build (Release)
+        run: |
+          cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DBUILD_PKG_QT_GUI=ON
+          cmake --build build
+          ls -alh build/*.exe
+
+      - name: Package
+        run: |
+          mkdir -p dist
+          cp build/ps4-pkg-tool.exe dist/
+          cp build/ps4-pkg-tool-gui.exe dist/
+          # Qt DLLs and plugins for the GUI
+          export PATH="$PATH:/ucrt64/share/qt6/bin"
+          WINDEPLOYQT=$(command -v windeployqt6 || command -v windeployqt-qt6 || command -v windeployqt)
+          "$WINDEPLOYQT" --release --no-translations --no-system-d3d-compiler --no-opengl-sw dist/ps4-pkg-tool-gui.exe
+          # Remaining MinGW runtime DLLs needed by Qt (libstdc++, icu, zstd, ...)
+          find dist -name '*.exe' -o -name '*.dll' | xargs -n1 ldd | grep -i '/ucrt64/' | awk '{print $3}' | sort -u | xargs -r cp -n -t dist/
+          ls -alhR dist
+          (cd dist && zip -r ../ps4-pkg-tools-Windows.zip .)
+
+      - name: Smoke test
+        run: |
+          ./dist/ps4-pkg-tool.exe --help
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ps4-pkg-tools-Windows
+          path: ps4-pkg-tools-Windows.zip
+
   release:
     name: Create GitHub Release
-    needs: build
+    needs: [build, build-windows]
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository (for tagging)
@@ -100,6 +152,7 @@ jobs:
         with:
           files: |
             artifacts/*/*.tar.gz
+            artifacts/*/*.zip
           draft: false
           prerelease: false
           tag_name: ${{ steps.gen_tag.outputs.tag }}

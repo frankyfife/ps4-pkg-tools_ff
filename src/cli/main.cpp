@@ -5,6 +5,27 @@
 #include <vector>
 #include "pkg_tool/lib.h"
 
+#ifdef _WIN32
+#include <windows.h>
+#include <shellapi.h>
+#endif
+
+// Returns the command line arguments as paths. On Windows argv is limited to the
+// ANSI code page, so read the UTF-16 command line instead to support any file name.
+static std::vector<std::filesystem::path> GetArgs(int argc, char** argv) {
+    std::vector<std::filesystem::path> args;
+#ifdef _WIN32
+    int wargc = 0;
+    if (LPWSTR* wargv = CommandLineToArgvW(GetCommandLineW(), &wargc)) {
+        args.assign(wargv, wargv + wargc);
+        LocalFree(wargv);
+        return args;
+    }
+#endif
+    args.assign(argv, argv + argc);
+    return args;
+}
+
 static bool ProcessPkg(const std::filesystem::path& pkgPath, const std::filesystem::path& baseOutDir) {
     std::cout << "\nProcessing PKG: " << pkgPath.filename() << std::endl;
     PkgMetadata meta;
@@ -35,9 +56,16 @@ static bool ProcessPkg(const std::filesystem::path& pkgPath, const std::filesyst
 }
 
 int main(int argc, char** argv) {
+#ifdef _WIN32
+    // Print non-ASCII file names correctly in the console
+    SetConsoleOutputCP(CP_UTF8);
+#endif
+    const auto args = GetArgs(argc, argv);
+    argc = static_cast<int>(args.size());
+
     // Check for directory mode flag
-    if (argc >= 3 && std::string(argv[1]) == "--dir") {
-        std::filesystem::path sourceDir = argv[2];
+    if (argc >= 3 && args[1] == "--dir") {
+        std::filesystem::path sourceDir = args[2];
         std::filesystem::path outputBaseDir;
         
         // Use the source directory as the default output if no output directory is specified
@@ -45,7 +73,7 @@ int main(int argc, char** argv) {
             outputBaseDir = sourceDir;
             std::cout << "No output directory specified. Using source directory: " << outputBaseDir << std::endl;
         } else {
-            outputBaseDir = argv[3];
+            outputBaseDir = args[3];
         }
         
         if (!std::filesystem::exists(sourceDir) || !std::filesystem::is_directory(sourceDir)) {
@@ -89,7 +117,7 @@ int main(int argc, char** argv) {
     } 
     // Standard single file processing mode
     else if (argc >= 2 && argc <= 3) {
-        std::filesystem::path pkgPath = argv[1];
+        std::filesystem::path pkgPath = args[1];
         std::filesystem::path outDir;
         
         // Handle help flags
@@ -105,7 +133,7 @@ int main(int argc, char** argv) {
             outDir = pkgPath.parent_path();
             std::cout << "No output directory specified. Using PKG parent directory: " << outDir << std::endl;
         } else {
-            outDir = argv[2];
+            outDir = args[2];
         }
         
         return ProcessPkg(pkgPath, outDir) ? 0 : 1;

@@ -17,7 +17,9 @@
 #include <unistd.h>
 #endif
 
-#ifdef _MSC_VER
+// Use the 64-bit CRT seek functions on all Windows toolchains: MinGW's fseeko/ftello take a
+// 32-bit offset by default, which breaks PKG files larger than 2 GiB.
+#ifdef _WIN32
 #define fileno _fileno
 #define fseeko _fseeki64
 #define ftello _ftelli64
@@ -229,15 +231,13 @@ void IOFile::Unlink() {
     // Mark the file for deletion
     // TODO: Also remove the file path?
 #ifdef _WIN64
-    FILE_DISPOSITION_INFORMATION disposition;
-    IO_STATUS_BLOCK iosb;
+    FILE_DISPOSITION_INFO disposition;
 
     const int fd = fileno(file);
     HANDLE hfile = reinterpret_cast<HANDLE>(_get_osfhandle(fd));
 
     disposition.DeleteFile = TRUE;
-    NtSetInformationFile(hfile, &iosb, &disposition, sizeof(disposition),
-                         FileDispositionInformation);
+    SetFileInformationByHandle(hfile, FileDispositionInfo, &disposition, sizeof(disposition));
 #else
     if (unlink(file_path.c_str()) != 0) {
         const auto ec = std::error_code{errno, std::generic_category()};
@@ -257,8 +257,7 @@ uintptr_t IOFile::GetFileMapping() {
     HANDLE mapping = nullptr;
 
     if (file_access_mode == FileAccessMode::ReadWrite) {
-        mapping = CreateFileMapping2(hfile, NULL, FILE_MAP_WRITE, PAGE_READWRITE, SEC_COMMIT, 0,
-                                     NULL, NULL, 0);
+        mapping = CreateFileMappingW(hfile, NULL, PAGE_READWRITE | SEC_COMMIT, 0, 0, NULL);
     } else {
         mapping = hfile;
     }

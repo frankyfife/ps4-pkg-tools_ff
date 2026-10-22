@@ -22,6 +22,10 @@ if(MSVC)
   add_definitions(-DNOMINMAX -D_CRT_SECURE_NO_WARNINGS)
 endif()
 
+if(MINGW)
+  add_definitions(-DNOMINMAX)
+endif()
+
 ## --- Minimal dependency setup (CLI + optional GUI only) ---
 # Use zlib from submodule (needed for PFSC decompression)
 set(ZLIB_BUILD_EXAMPLES OFF CACHE BOOL "Build zlib examples" FORCE)
@@ -98,6 +102,10 @@ target_link_libraries(ps4-pkg-tool PRIVATE ps4_pkg_tool_core)
 if(MSVC)
   target_link_libraries(ps4-pkg-tool PRIVATE ws2_32)
 endif()
+if(MINGW)
+  # Fully static CLI: no libstdc++-6.dll / libgcc_s_seh-1.dll / libwinpthread-1.dll needed
+  target_link_options(ps4-pkg-tool PRIVATE -static)
+endif()
 install(TARGETS ps4-pkg-tool RUNTIME DESTINATION bin)
 
 #---------------------------------------------
@@ -115,6 +123,10 @@ if(BUILD_PKG_QT_GUI)
         src/gui/pkg_tool_gui.cpp
     )
     target_link_libraries(ps4-pkg-tool-gui PRIVATE ps4_pkg_tool_core Qt6::Widgets)
+    if(WIN32)
+      # Build as a GUI application (no console window)
+      set_target_properties(ps4-pkg-tool-gui PROPERTIES WIN32_EXECUTABLE ON)
+    endif()
     install(TARGETS ps4-pkg-tool-gui RUNTIME DESTINATION bin)
   else()
     message(WARNING "Qt6 Widgets not found; ps4-pkg-tool-gui will not be built.")

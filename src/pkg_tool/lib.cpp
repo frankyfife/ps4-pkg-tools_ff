@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 #include "pkg_tool/lib.h"
 #include "core/file_format/pkg.h"
+#include <algorithm>
+#include <cctype>
 #include <filesystem>
 #include <string>
 #include <vector>
@@ -63,16 +65,25 @@ std::optional<std::string> ExtractPkg(const std::filesystem::path& pkg_path,
     return std::nullopt;
 }
 
+// Case-insensitive so that e.g. "GAME.PKG" is found on Windows as well.
+static bool IsPkgFile(const std::filesystem::directory_entry& e) {
+    if (!e.is_regular_file()) return false;
+    std::string ext = e.path().extension().string();
+    std::transform(ext.begin(), ext.end(), ext.begin(),
+                   [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+    return ext == ".pkg";
+}
+
 std::vector<std::filesystem::path> ListPkgFiles(const std::filesystem::path& dir, bool recursive) {
     std::vector<std::filesystem::path> out;
     if (!std::filesystem::exists(dir) || !std::filesystem::is_directory(dir)) return out;
     if (recursive) {
         for (auto& e : std::filesystem::recursive_directory_iterator(dir)) {
-            if (e.is_regular_file() && e.path().extension() == ".pkg") out.push_back(e.path());
+            if (IsPkgFile(e)) out.push_back(e.path());
         }
     } else {
         for (auto& e : std::filesystem::directory_iterator(dir)) {
-            if (e.is_regular_file() && e.path().extension() == ".pkg") out.push_back(e.path());
+            if (IsPkgFile(e)) out.push_back(e.path());
         }
     }
     return out;

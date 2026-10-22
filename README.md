@@ -116,15 +116,55 @@ make help     # Show all available options
 
 #### GitHub Actions Automated Builds
 
-This repository uses GitHub Actions to automatically build the tool for macOS and Linux environments. You can:
+This repository uses GitHub Actions to automatically build the tool for Windows, macOS and Linux environments. You can:
 
 1. Download the latest prebuilt binaries from the Actions tab (available after a successful workflow run)
 2. Fork the repository and use the workflows in your own repository
 3. Manually trigger the workflows from the Actions tab using the "workflow_dispatch" event
 
 The available workflows are:
-- `build.yml`: Builds both macOS and Linux binaries on GitHub's runners
+- `build.yml`: Builds Windows, macOS and Linux binaries on GitHub's runners
 - `docker-build.yml`: Builds a Linux binary using Docker
+
+#### Windows
+
+Prebuilt Windows binaries are produced by GitHub Actions: download `ps4-pkg-tools-Windows`
+from the Actions tab (or the `.zip` from a release) and unpack it. It contains:
+
+- `ps4-pkg-tool.exe` – command-line tool (standalone, no DLLs needed)
+- `ps4-pkg-tool-gui.exe` – GUI, together with the Qt DLLs it needs (keep them in the same folder)
+
+```bat
+ps4-pkg-tool.exe "D:\PS4\Game-CUSAXXXXX.pkg" "D:\PS4\Extracted"
+ps4-pkg-tool.exe --dir "D:\PS4" "D:\PS4\Extracted"
+```
+
+**Building on Windows with MSYS2:**
+
+1. Install [MSYS2](https://www.msys2.org/) and open the **UCRT64** shell
+2. Install the toolchain and Qt6:
+   ```bash
+   pacman -S --needed git mingw-w64-ucrt-x86_64-toolchain mingw-w64-ucrt-x86_64-cmake \
+       mingw-w64-ucrt-x86_64-ninja mingw-w64-ucrt-x86_64-qt6-base mingw-w64-ucrt-x86_64-qt6-tools
+   ```
+3. Build:
+   ```bash
+   git clone --recursive https://github.com/frankyfife/ps4-pkg-tools_ff.git
+   cd ps4-pkg-tools_ff
+   cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
+   cmake --build build
+   ```
+4. To run the GUI outside the MSYS2 shell, copy the Qt DLLs next to it:
+   `windeployqt6 build/ps4-pkg-tool-gui.exe` (depending on the Qt package also called `windeployqt`)
+
+**Cross-compiling the CLI from Linux:**
+
+```bash
+sudo apt install mingw-w64
+cmake -S . -B build-windows -DCMAKE_TOOLCHAIN_FILE=cmake/mingw-w64-x86_64.cmake -DBUILD_PKG_QT_GUI=OFF
+cmake --build build-windows --target ps4-pkg-tool
+# -> build-windows/ps4-pkg-tool.exe
+```
 
 #### macOS
 
